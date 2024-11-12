@@ -18,10 +18,17 @@ const getUserInfo = async () => {
   };
 };
 
-const getAddressByEmail = async (email: string) => {
-  const res = await fetch(`${env().api_url}/api/v1/auth/address`, {
-    body: JSON.stringify({ email }),
-  });
+const getAddressByEmail = async (email: string, chain_name: EVMChainName) => {
+  const res = await fetch(
+    `${
+      env().api_url
+    }/api/v1/auth/address?email=${email}&&provider=privy&provider_login_method=email&chain_name=${chain_name}`,
+    {
+      headers: {
+        "x-api-key": env().api_key,
+      },
+    }
+  );
 
   return (await res.json()) as {
     address: string;
@@ -51,7 +58,7 @@ const createGiftBoxTask = async (
           artworks: [
             {
               // NFT-related information
-              nft_contract: artwork_nft.contract,
+              contract: artwork_nft.contract,
               token_id: artwork_nft.token_id,
               source: artwork_nft.mediaUrl,
               source_metadata: artwork_nft.mediaMetadata,
@@ -67,7 +74,7 @@ const createGiftBoxTask = async (
 
               type: artwork_nft.type,
               // Only support 1, indicating one 1155/721 NFT
-              amount: 1,
+              amount: "1",
             },
           ],
           // Gift box configuration
@@ -125,7 +132,9 @@ const main = async () => {
     last_name: "test",
   };
 
-  const recipientAddress = (await getAddressByEmail(recipient.email)).address;
+  const recipientAddress = (
+    await getAddressByEmail(recipient.email, user.chain_name)
+  ).address;
 
   const mint_gift_box_transaction_hash = await contract.mintGiftBox({
     sender: user.address,
@@ -143,6 +152,7 @@ const main = async () => {
     token_id: nft.token_id,
     type: nft.type,
     gift_token_id: gift_token_id,
+    amount: 1,
   });
 
   await contract.waitForTransactionReceipt(transfer_transaction_hash);

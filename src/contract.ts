@@ -5,6 +5,8 @@ import {
   decodeEventLog,
   getAddress,
   http,
+  NonceManager,
+  createNonceManager,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
@@ -18,9 +20,12 @@ import fetch from "node-fetch";
 import memoizee from "memoizee";
 import { giftedBox } from "./abi/GiftedBox";
 import { ERC721 } from "./abi/ERC721";
+import { jsonRpc } from "viem/nonce";
 import { ERC1155 } from "./abi/ERC1155";
 
 export class Contract {
+  private readonly nonceManager: NonceManager;
+
   chain_name: EVMChainName;
   private_key: string;
   rpc_url?: string;
@@ -29,6 +34,10 @@ export class Contract {
     this.chain_name = chain_name;
     this.private_key = private_key;
     this.rpc_url = rpc_url;
+
+    this.nonceManager = createNonceManager({
+      source: jsonRpc(),
+    });
   }
 
   getPublicClient() {
@@ -41,20 +50,25 @@ export class Contract {
   getWalletClient() {
     return createWalletClient({
       chain: EVMChainMap[this.chain_name],
-      account: privateKeyToAccount(`0x${this.private_key}`),
+      account: privateKeyToAccount(`0x${this.private_key}`, {
+        nonceManager: this.nonceManager,
+      }),
       transport: this.rpc_url ? http(this.rpc_url) : http(),
     });
   }
 
   getGiftedContractAddresses = memoizee(
     async () => {
-      const res = await fetch(`${env().api_url}/api/v1/contracts/addresses`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": env().api_key,
-        },
-      });
+      const res = await fetch(
+        `${env().api_url}/api/v1/contracts/gifted-contract-addresses`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": env().api_key,
+          },
+        }
+      );
 
       const data = await res.json();
 
@@ -91,7 +105,7 @@ export class Contract {
         args: [sender as Address, recipient as Address, operator as Address],
       });
 
-      return { request };
+      return request;
     } catch (error) {
       throw new Error(`EVM SimulateMintGiftBox: ${error}`);
     }
@@ -222,17 +236,6 @@ export class Contract {
   }
 
   async transferTokenToGiftBox(data: TransferTokenToGiftBox): Promise<string> {
-    const publicClient = this.getPublicClient();
-    const account = this.getWalletClient().account;
-
-    const { GiftedBox } = await this.getGiftedContractAddresses();
-
-    const token_account_address = await publicClient.readContract({
-      address: GiftedBox as Address,
-      abi: giftedBox.abi,
-      functionName: "tokenAccountAddress",
-      args: [BigInt(data.gift_token_id)],
-    });
     const request = await this.simulateTransferTokenToGiftBox(data);
 
     const walletClient = this.getWalletClient();
