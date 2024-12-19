@@ -72,9 +72,11 @@ const createGiftBoxTask = async (
               artwork_name: "Demo Artwork name",
               artwork_description: "Demo Artwork description",
 
-              type: artwork_nft.type,
-              // Only support 1, indicating one 1155/721 NFT
-              amount: "1",
+              metadata: {
+                type: artwork_nft.type,
+                // Only support 1, indicating one 1155/721 NFT
+                amount: "1",
+              },
             },
           ],
           // Gift box configuration
